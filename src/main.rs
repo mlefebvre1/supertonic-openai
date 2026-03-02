@@ -5,6 +5,7 @@ mod third_party;
 use std::sync::Arc;
 
 use tokio::signal;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use axum::{
     Extension, Router,
@@ -31,13 +32,30 @@ struct Args {
     /// Server listening address in the format IP:PORT
     #[arg(short, long, default_value = "0.0.0.0:3000")]
     listen: String,
+
+    /// Enable GPU acceleration for inference
+    #[arg(long, default_value_t = false)]
+    gpu: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Initialize tracing subscriber with environment filter
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "supertonic2_openai=info,tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let args = Args::parse();
 
-    let app_state = Arc::new(AppState::new(args.assets_path)?);
+    tracing::info!("Starting supertonic2-openai server");
+    tracing::debug!("Assets path: {}", args.assets_path);
+    tracing::debug!("GPU acceleration: {}", args.gpu);
+
+    let app_state = Arc::new(AppState::new(args.assets_path, args.gpu)?);
 
     let openai_api_v1 = Router::new()
         .route("/audio/voices", get(list_voices))
@@ -50,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new().nest("/v1", openai_api_v1);
 
     let listener = tokio::net::TcpListener::bind(&args.listen).await?;
-    println!("Starting listener on {}", listener.local_addr()?);
+    tracing::info!("Listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -74,7 +92,11 @@ async fn shutdown_signal() {
     };
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl+C signal, shutting down gracefully");
+        },
+        _ = terminate => {
+            tracing::info!("Received terminate signal, shutting down gracefully");
+        },
     }
 }

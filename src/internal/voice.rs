@@ -26,7 +26,8 @@ impl Voice {
     }
 
     fn _internal_data(&self) -> anyhow::Result<Style> {
-        load_voice_style(std::slice::from_ref(&self.file_path), true)
+        tracing::debug!(voice_path=%self.file_path, "loading voice style.");
+        load_voice_style(std::slice::from_ref(&self.file_path), false)
     }
 }
 

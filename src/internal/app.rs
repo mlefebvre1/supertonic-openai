@@ -14,9 +14,19 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(assets_path: String) -> Result<Self, Error> {
+    #[tracing::instrument(skip(assets_path))]
+    pub fn new(assets_path: String, use_gpu: bool) -> Result<Self, Error> {
+        tracing::info!(
+            assets_path = %assets_path,
+            use_gpu = %use_gpu,
+            "Initializing AppState.",
+        );
+
         let voices = lazy_init_voices(assets_path.clone())?;
-        let tts = load_model(assets_path.clone(), false)?;
+        tracing::debug!(number_of_voices=%voices.len(), "Voices loaded.");
+
+        let tts = load_model(assets_path.clone(), use_gpu)?;
+        tracing::debug!("TTS model loaded.");
 
         Ok(Self {
             voices,

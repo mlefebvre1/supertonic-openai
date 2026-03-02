@@ -45,12 +45,12 @@ pub struct SpeechBodyParams {
     silence_duration: Option<f32>,
 }
 
+#[tracing::instrument(skip(state,params), fields(input=%params.input, voice = ?params.voice))]
 pub async fn create_speech(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<SpeechBodyParams>,
 ) -> Result<impl IntoResponse, OpenAIError> {
-    // TODO: should use a cache to load voices, and should return better errors
-    println!("Creating speech with params: {:?}", params); //TODO: using logging library
+    tracing::info!("Creating speech.");
 
     let sample_rate = { state.tts.lock().await.sample_rate };
     let (audio_data, duration) = inference(&state, &params).await?;
@@ -58,6 +58,12 @@ pub async fn create_speech(
     let audio_data = &audio_data[..actual_len.min(audio_data.len())];
 
     let wav = create_wav(audio_data, sample_rate)?;
+
+    tracing::debug!(
+        duration = %duration,
+        wav_len = %wav.len(),
+        "Successfully created speech audio.",
+    );
 
     let mut headers = HeaderMap::new();
 
@@ -81,6 +87,7 @@ async fn inference(
     params: &SpeechBodyParams,
 ) -> Result<(Vec<f32>, f32), OpenAIError> {
     let voice_name = params.voice.clone().unwrap_or("M1".to_string());
+    tracing::debug!(voice_name=%voice_name, "Using voice style.");
 
     let voice = state
         .get_voice(&voice_name)
@@ -90,12 +97,18 @@ async fn inference(
 
     let mut tts = state.tts.lock().await;
 
+    let total_step = params.total_step.unwrap_or(10) as usize;
+    let speed = params.speed.unwrap_or(1.3);
+    let silence_duration = params.silence_duration.unwrap_or(0.0);
+
+    tracing::debug!(total_step = %total_step, speed=%speed, silence_duration=%silence_duration, "Starting TTS inference.");
+
     Ok(tts.call(
         &params.input,
         "en",
         style,
-        params.total_step.unwrap_or(10) as usize,
-        params.speed.unwrap_or(1.3),
-        params.silence_duration.unwrap_or(0.0),
+        total_step,
+        speed,
+        silence_duration,
     )?)
 }

@@ -21,7 +21,9 @@ pub struct Model {
     owned_by: String,
 }
 
+#[tracing::instrument]
 pub async fn get_model(Path(model_id): Path<String>) -> Result<AppJson<Model>, OpenAIError> {
+    tracing::info!("Fetching model.");
     let model = MODELS
         .iter()
         .find(|model| model.id == model_id)
@@ -30,6 +32,8 @@ pub async fn get_model(Path(model_id): Path<String>) -> Result<AppJson<Model>, O
     Ok(AppJson::new(model))
 }
 
+#[tracing::instrument]
 pub async fn list_models() -> AppJson<Vec<Model>> {
+    tracing::info!("Listing all models.");
     AppJson::new(MODELS.clone())
 }
