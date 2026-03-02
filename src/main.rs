@@ -40,7 +40,6 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing subscriber with environment filter
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -52,20 +51,20 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     tracing::info!("Starting supertonic2-openai server");
-    tracing::debug!("Assets path: {}", args.assets_path);
-    tracing::debug!("GPU acceleration: {}", args.gpu);
-
     let app_state = Arc::new(AppState::new(args.assets_path, args.gpu)?);
 
     let openai_api_v1 = Router::new()
         .route("/audio/voices", get(list_voices))
-        // .route("/audio/voices/combine", post(combine_voices))
+        .route("/audio/voices/", get(list_voices))
         .route("/audio/speech", post(create_speech))
         .layer(Extension(app_state))
         .route("/models", get(list_models))
+        .route("/models/", get(list_models))
         .route("/models/{model}", get(get_model));
 
-    let app = Router::new().nest("/v1", openai_api_v1);
+    let app = Router::new()
+        .nest("/v1", openai_api_v1)
+        .fallback(get(|| async { "Not Found" }));
 
     let listener = tokio::net::TcpListener::bind(&args.listen).await?;
     tracing::info!("Listening on {}", listener.local_addr()?);

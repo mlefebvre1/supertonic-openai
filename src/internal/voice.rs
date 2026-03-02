@@ -40,13 +40,13 @@ pub fn lazy_init_voices(assets_path: String) -> anyhow::Result<HashMap<String, V
         let entry = entry?;
         let path = entry.path();
 
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-                voices.insert(
-                    file_stem.to_string(),
-                    Voice::new(path.to_string_lossy().to_string()),
-                );
-            }
+        if path.extension().and_then(|s| s.to_str()) == Some("json")
+            && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
+        {
+            voices.insert(
+                file_stem.to_string(),
+                Voice::new(path.to_string_lossy().to_string()),
+            );
         }
     }
 
