@@ -1,8 +1,12 @@
 use std::io::Read;
 
-use axum::{Json, extract::Extension, extract::Query, http::StatusCode};
+use axum::{
+    Json,
+    extract::Extension,
+    http::{HeaderMap, StatusCode, header},
+    response::IntoResponse,
+};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
 use std::sync::Arc;
 
@@ -42,7 +46,7 @@ total_step(2-15): specific to supertonic*/
 pub struct SpeechBodyParams {
     input: String,
     model: String,
-    voice: String,
+    voice: Option<String>,
     instructions: Option<String>,
     response_format: Option<String>,
     speed: Option<f32>,
@@ -51,66 +55,47 @@ pub struct SpeechBodyParams {
     silence_duration: Option<f32>,
 }
 
-impl SpeechBodyParams {
-    pub fn builder() -> Self {
-        Self::default()
-    }
-
-    pub fn input(mut self, input: String) -> Self {
-        self.input = input;
-        self
-    }
-
-    pub fn voice(mut self, voice: String) -> Self {
-        self.voice = voice;
-        self
-    }
-
-    pub fn speed(mut self, speed: f32) -> Self {
-        self.speed = Some(speed);
-        self
-    }
-
-    pub fn total_step(mut self, total_step: u8) -> Self {
-        self.total_step = Some(total_step);
-        self
-    }
-    pub fn silence_duration(mut self, silence_duration: f32) -> Self {
-        self.silence_duration = Some(silence_duration);
-        self
-    }
-}
-
 pub async fn create_speech(
-    Query(params): Query<SpeechBodyParams>,
-    Extension(state): Extension<Arc<Mutex<SharedState>>>,
-) -> Result<Json<Vec<u8>>, StatusCode> {
+    Extension(state): Extension<Arc<SharedState>>,
+    Json(params): Json<SpeechBodyParams>,
+) -> Result<impl IntoResponse, StatusCode> {
     // TODO: should use a cache to load voices, and should return better errors
     println!("Creating speech with params: {:?}", params);
-    let style =
-        load_voice_style(&[params.voice], true).map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let voice = format!(
+        "{}/voice_styles/{}.json",
+        state.asset_path,
+        params.voice.unwrap_or("M1".to_string())
+    );
+    let style = load_voice_style(&[voice], true).map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let sample_rate = { state.tts.lock().await.sample_rate };
 
     println!("Loaded voice");
-    // Inference
-    let (audio_data, _duration) = {
+    println!("Input is {}", params.input);
+    let (audio_data, duration) = {
         state
+            .tts
             .lock()
             .await
-            .tts
             .call(
                 &params.input,
                 "en",
                 &style,
                 params.total_step.unwrap_or(10) as usize,
-                params.speed.unwrap_or(1.0),
-                params.silence_duration.unwrap_or(0.3),
+                params.speed.unwrap_or(1.3),
+                params.silence_duration.unwrap_or(0.0),
             )
             .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
     };
+    let actual_len = (sample_rate as f32 * duration) as usize;
+    let audio_data = &audio_data[..actual_len.min(audio_data.len())];
+    println!("duration -> {duration}s       sample_rate -> {sample_rate}");
 
-    let mut tmp = tempfile::NamedTempFile::new().map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
+    //TODO: check if we can avoid using a temporary file
+    let mut tmp = tempfile::NamedTempFile::with_suffix(".wav")
+        .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
     {
-        write_wav_file(tmp.path(), &audio_data, state.lock().await.tts.sample_rate)
+        write_wav_file(tmp.path(), &audio_data, sample_rate)
             .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
@@ -118,6 +103,14 @@ pub async fn create_speech(
     tmp.read_to_end(&mut out)
         .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        "audio/wav"
+            .parse()
+            .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?,
+    );
+
     // Write wav file
-    Ok(Json(out))
+    Ok((headers, out))
 }

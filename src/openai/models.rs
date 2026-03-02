@@ -2,36 +2,34 @@ use axum::extract::Path;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 
+use crate::openai::{OpenAIError, error::AppJson};
+
 static MODELS: LazyLock<Vec<Model>> = LazyLock::new(|| {
     vec![Model {
-        id: "supertonic2".to_string(),
+        id: "supertonic".to_string(),
         object: "model".to_string(),
-        created: 0,
+        created: 0, //TODO: set time
         owned_by: "unknown".to_string(),
     }]
 });
 
 #[derive(Serialize, Deserialize, Clone)]
-struct Model {
+pub struct Model {
     id: String,
     object: String,
     created: u64,
     owned_by: String,
 }
 
-async fn get_model(Path(model_id): Path<String>) -> Model {
-    MODELS
+pub async fn get_model(Path(model_id): Path<String>) -> Result<AppJson<Model>, OpenAIError> {
+    let model = MODELS
         .iter()
         .find(|model| model.id == model_id)
-        .cloned()
-        .unwrap_or_else(|| Model {
-            id: "unknown".to_string(),
-            object: "model".to_string(),
-            created: 0,
-            owned_by: "unknown".to_string(),
-        })
+        .ok_or(OpenAIError::ModelNotFound())?
+        .clone();
+    Ok(AppJson::new(model))
 }
 
-async fn list_models() -> Vec<Model> {
-    (*MODELS).clone()
+pub async fn list_models() -> AppJson<Vec<Model>> {
+    AppJson::new(MODELS.clone())
 }

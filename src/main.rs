@@ -6,82 +6,58 @@ use std::fs;
 
 use std::sync::Arc;
 
-use tokio::{signal, sync::Mutex};
+use tokio::signal;
 
 use axum::{
     Extension, Router,
-    extract::Path,
-    response::Json,
     routing::{get, post},
 };
-use hf_hub::api::tokio::Api;
-use ort::session::Session;
+
+use clap::Parser;
 
 use openai::create_speech;
 
 use crate::{
     app::SharedState,
-    openai::list_voices,
-    third_party::{Config, TextToSpeech},
+    openai::{get_model, list_models, list_voices},
+    third_party::load_text_to_speech,
 };
+
+#[derive(Parser, Debug)]
+#[command(name = "supertonic2-openai")]
+#[command(about = "An OpenAI-compatible Text-to-Speech server", long_about = None)]
+struct Args {
+    /// Path to the assets directory containing ONNX models
+    #[arg(short, long, default_value = "./assets")]
+    assets_path: String,
+
+    /// Server listening address in the format IP:PORT
+    #[arg(short, long, default_value = "0.0.0.0:3000")]
+    listen: String,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let api = Api::new()?;
+    let args = Args::parse();
 
-    let repo = api.model("Supertone/supertonic-2".to_string());
-
-    let config_path = repo.get("onnx/tts.json").await?;
-
-    let config: Config = serde_json::from_str(&fs::read_to_string(config_path)?)?;
-
-    println!("Config: {:?}", config);
-
-    let duration_predictor = repo.get("onnx/duration_predictor.onnx").await?;
-    let text_encoder = repo.get("onnx/text_encoder.onnx").await?;
-    let vector_estimator = repo.get("onnx/vector_estimator.onnx").await?;
-    let vocoder = repo.get("onnx/vocoder.onnx").await?;
-
-    let unicode_indexer_path = repo.get("onnx/unicode_indexer.json").await?;
-
-    println!("Done downloading models");
-
-    let unicode_indexer: Vec<i64> =
-        serde_json::from_str(&fs::read_to_string(unicode_indexer_path)?)?;
-
-    let dp_ort = Session::builder()?.commit_from_file(&duration_predictor)?;
-    let text_encoder_ort = Session::builder()?.commit_from_file(&text_encoder)?;
-    let vector_est_ort = Session::builder()?.commit_from_file(&vector_estimator)?;
-    let vocoder_ort = Session::builder()?.commit_from_file(&vocoder)?;
-
-    let text_processor = third_party::UnicodeProcessor::new_from_indexer(unicode_indexer);
-
-    let tts = TextToSpeech::new(
-        config,
-        text_processor,
-        dp_ort,
-        text_encoder_ort,
-        vector_est_ort,
-        vocoder_ort,
-    );
+    let tts = load_text_to_speech(&format!("{}/onnx", args.assets_path), false)?;
 
     println!("TTS initialized");
 
-    let shared_state = Arc::new(Mutex::new(SharedState { tts }));
+    let shared_state = Arc::new(SharedState::new(&args.assets_path, tts));
 
     let app = Router::new()
         // /download/<file> ??
         // .route("/audio/voices", post(create_voice))
         .route("/audio/voices", get(list_voices))
         // .route("/audio/voices/combine", post(combine_voices))
+        .route("/audio/speech", post(create_speech))
         .layer(Extension(shared_state))
-        .route("/audio/speech", post(create_speech));
+        .route("/models", get(list_models))
+        .route("/models/{model}", get(get_model));
 
-    // .route("/models", get(list_models))
-    // .route("/models/{model}", get(get_model));
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("Starting listener on {}:3000", listener.local_addr()?);
+    let listener = tokio::net::TcpListener::bind(&args.listen).await?;
+    println!("Starting listener on {}", listener.local_addr()?);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
