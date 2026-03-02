@@ -25,7 +25,7 @@ pub async fn get_model(Path(model_id): Path<String>) -> Result<AppJson<Model>, O
     let model = MODELS
         .iter()
         .find(|model| model.id == model_id)
-        .ok_or(OpenAIError::ModelNotFound())?
+        .ok_or(OpenAIError::ModelNotFound)?
         .clone();
     Ok(AppJson::new(model))
 }

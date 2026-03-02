@@ -8,11 +8,14 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum OpenAIError {
+    #[error(transparent)]
+    Internal(#[from] crate::internal::Error),
+
     #[error("voice not found")]
-    VoiceNotFound(String),
+    VoiceNotFound,
 
     #[error("model not found")]
-    ModelNotFound(),
+    ModelNotFound,
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
@@ -21,7 +24,7 @@ pub enum OpenAIError {
     Other(#[from] anyhow::Error),
 }
 
-// TODO:Should probably moved to http specific module
+// TODO:Should probably moved to axum impl
 #[derive(FromRequest)]
 #[from_request(via(axum::Json), rejection(OpenAIError))]
 pub struct AppJson<T>(T);
@@ -42,14 +45,15 @@ where
 
 impl IntoResponse for OpenAIError {
     fn into_response(self) -> Response {
-        // How we want errors responses to be serialized
         #[derive(Serialize)]
         struct ErrorResponse {
             message: String,
         }
+
         let (status, message) = match &self {
-            OpenAIError::VoiceNotFound(e) => (StatusCode::NOT_FOUND, e.to_string()),
-            OpenAIError::ModelNotFound() => (StatusCode::NOT_FOUND, "model not found".to_string()),
+            OpenAIError::Internal(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            OpenAIError::VoiceNotFound => (StatusCode::NOT_FOUND, "voice not found".to_string()),
+            OpenAIError::ModelNotFound => (StatusCode::NOT_FOUND, "model not found".to_string()),
             OpenAIError::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             OpenAIError::Other(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
         };
@@ -57,4 +61,4 @@ impl IntoResponse for OpenAIError {
         (status, AppJson(ErrorResponse { message })).into_response()
     }
 }
-// TODO:Should probably moved to http specific module
+// TODO:Should probably moved to axum impl

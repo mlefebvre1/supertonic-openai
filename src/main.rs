@@ -1,8 +1,6 @@
-mod app;
+mod internal;
 mod openai;
 mod third_party;
-
-use std::fs;
 
 use std::sync::Arc;
 
@@ -18,9 +16,8 @@ use clap::Parser;
 use openai::create_speech;
 
 use crate::{
-    app::SharedState,
+    internal::AppState,
     openai::{get_model, list_models, list_voices},
-    third_party::load_text_to_speech,
 };
 
 #[derive(Parser, Debug)]
@@ -40,21 +37,17 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let tts = load_text_to_speech(&format!("{}/onnx", args.assets_path), false)?;
+    let app_state = Arc::new(AppState::new(args.assets_path)?);
 
-    println!("TTS initialized");
-
-    let shared_state = Arc::new(SharedState::new(&args.assets_path, tts));
-
-    let app = Router::new()
-        // /download/<file> ??
-        // .route("/audio/voices", post(create_voice))
+    let openai_api_v1 = Router::new()
         .route("/audio/voices", get(list_voices))
         // .route("/audio/voices/combine", post(combine_voices))
         .route("/audio/speech", post(create_speech))
-        .layer(Extension(shared_state))
+        .layer(Extension(app_state))
         .route("/models", get(list_models))
         .route("/models/{model}", get(get_model));
+
+    let app = Router::new().nest("/v1", openai_api_v1);
 
     let listener = tokio::net::TcpListener::bind(&args.listen).await?;
     println!("Starting listener on {}", listener.local_addr()?);
