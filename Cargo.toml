@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 thiserror = "2.0"
 
-ort = "2.0.0-rc.11"
+ort = { version = "2.0.0-rc.11" }
 
 ndarray = { version = "0.17", features = ["rayon"] }
 rand = "0.10"
@@ -39,3 +39,7 @@ tokio = { version = "1.0", features = ["full"] }
 tempfile = "3"
 
 axum = { version = "0.8", features = ["macros"] }
+
+
+[features]
+cuda = ["ort/cuda"]

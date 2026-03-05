@@ -14,14 +14,19 @@ RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
 RUN /root/.local/bin/hf download Supertone/supertonic-2 --local-dir ./assets
 
-COPY . .
+# Copy sources and build
+COPY . . 
 RUN cargo build --release
+
 
 FROM rust:slim-trixie as runner
 
 WORKDIR /app
 
+# The actual app
 COPY --from=builder /app/target/release/supertonic2-openai /app/supertonic2-openai
+
+# ONNX models and configs
 COPY --from=builder /app/assets /app/assets
 
 ENTRYPOINT ["/app/supertonic2-openai"]

@@ -538,10 +538,9 @@ where
     F: FnOnce() -> Result<T>,
 {
     let start = std::time::Instant::now();
-    println!("{}...", name);
     let result = f()?;
     let elapsed = start.elapsed().as_secs_f64();
-    println!("  -> {} completed in {:.2} sec", name, elapsed);
+    tracing::info!(" -> {} completed in {:.2} sec", name, elapsed);
     Ok(result)
 }
 
@@ -560,7 +559,7 @@ pub fn sanitize_filename(text: &str, max_len: usize) -> String {
 // ONNX Runtime Integration
 // ============================================================================
 
-use ort::{session::Session, value::Value};
+use ort::{ep, session::Session, value::Value};
 
 pub struct Style {
     pub ttl: Array3<f32>,
@@ -776,7 +775,7 @@ impl TextToSpeech {
 // ============================================================================
 
 /// Load voice style from JSON files
-pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<Style> {
+pub fn load_voice_style(voice_style_paths: &[String]) -> Result<Style> {
     let bsz = voice_style_paths.len();
 
     // Read first file to get dimensions
@@ -833,9 +832,7 @@ pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<S
     let ttl_style = Array3::from_shape_vec((bsz, ttl_dim1, ttl_dim2), ttl_flat)?;
     let dp_style = Array3::from_shape_vec((bsz, dp_dim1, dp_dim2), dp_flat)?;
 
-    if verbose {
-        println!("Loaded {} voice styles\n", bsz);
-    }
+    tracing::debug!(nb = %bsz, "Loaded voice style");
 
     Ok(Style {
         ttl: ttl_style,
@@ -846,9 +843,18 @@ pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<S
 /// Load TTS components
 pub fn load_text_to_speech(onnx_dir: &str, use_gpu: bool) -> Result<TextToSpeech> {
     if use_gpu {
-        anyhow::bail!("GPU mode is not supported yet");
+        // Initialize ONNX Runtime with CUDA execution provider if GPU is enabled
+        tracing::info!("Initializing ONNX Runtime with CUDA execution provider.");
+
+        if !ort::init()
+            .with_execution_providers([ep::CUDA::default().build().error_on_failure()])
+            .commit()
+        {
+            anyhow::bail!(
+                "Failed to initialize ONNX Runtime with CUDA execution provider. Please ensure you have a compatible NVIDIA GPU and the necessary drivers installed."
+            );
+        }
     }
-    println!("Using CPU for inference\n");
 
     let cfgs = load_cfgs(onnx_dir)?;
 

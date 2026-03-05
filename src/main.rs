@@ -30,7 +30,7 @@ struct Args {
     assets_path: String,
 
     /// Server listening address in the format IP:PORT
-    #[arg(short, long, default_value = "0.0.0.0:3000")]
+    #[arg(short, long, default_value = "0.0.0.0:50051")]
     listen: String,
 
     /// Enable GPU acceleration for inference
@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-    tracing::info!("Starting supertonic2-openai server");
+    tracing::info!("Starting supertonic-openai server");
     let app_state = Arc::new(AppState::new(args.assets_path, args.gpu)?);
 
     let openai_api_v1 = Router::new()
