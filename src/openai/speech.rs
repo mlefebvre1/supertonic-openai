@@ -10,7 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use std::sync::Arc;
 
-use crate::{internal::AppState, openai::OpenAIError, third_party::write_wav_file};
+use crate::{
+    internal::{AppState, ResponseFormat, create_response},
+    openai::OpenAIError,
+    third_party::write_wav_file,
+};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SpeechBodyParams {
@@ -45,7 +49,7 @@ pub struct SpeechBodyParams {
     silence_duration: Option<f32>,
 }
 
-#[tracing::instrument(skip(state,params), fields(input=%params.input, voice = ?params.voice))]
+#[tracing::instrument(skip(state,params), fields(input=%params.input, voice = ?params.voice, response_format = ?params.response_format))]
 pub async fn create_speech(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<SpeechBodyParams>,
@@ -57,29 +61,32 @@ pub async fn create_speech(
     let actual_len = (sample_rate as f32 * duration) as usize;
     let audio_data = &audio_data[..actual_len.min(audio_data.len())];
 
-    let wav = create_wav(audio_data, sample_rate)?;
+    let response_format: ResponseFormat = params
+        .response_format
+        .clone()
+        .unwrap_or("wav".to_string())
+        .try_into()?;
+
+    let response = create_response(audio_data, sample_rate as u32, &response_format)?;
 
     tracing::debug!(
         duration = %duration,
-        wav_len = %wav.len(),
+        response_len = %response.len(),
         "Successfully created speech audio.",
     );
 
     let mut headers = HeaderMap::new();
 
-    //Unwrap SAFETY: this can't fail, because audio/wav is a valid header value, and we are not using any user input here.
-    headers.insert(header::CONTENT_TYPE, "audio/wav".parse().unwrap());
+    match response_format {
+        ResponseFormat::Wav => {
+            headers.insert(header::CONTENT_TYPE, "audio/wav".parse().unwrap());
+        }
+        ResponseFormat::OpusOgg => {
+            headers.insert(header::CONTENT_TYPE, "audio/opus".parse().unwrap());
+        }
+    }
 
-    Ok((headers, wav))
-}
-
-fn create_wav(audio_data: &[f32], sample_rate: i32) -> anyhow::Result<Vec<u8>> {
-    let mut tmp = tempfile::NamedTempFile::with_suffix(".wav")?;
-    write_wav_file(tmp.path(), audio_data, sample_rate)?;
-
-    let mut out = vec![];
-    tmp.read_to_end(&mut out)?;
-    Ok(out)
+    Ok((headers, response))
 }
 
 async fn inference(
@@ -99,14 +106,14 @@ async fn inference(
 
     let total_step = params.total_step.unwrap_or(10) as usize;
     let speed = params.speed.unwrap_or(1.3);
-    let silence_duration = params.silence_duration.unwrap_or(0.0);
+    let silence_duration = params.silence_duration.unwrap_or(0.3);
 
     tracing::info!(total_step = %total_step, speed=%speed, silence_duration=%silence_duration, "Starting TTS inference.");
 
     Ok(tts
         .call(
             &params.input,
-            "en",
+            "en", //TODO: make this configurable
             style,
             total_step,
             speed,

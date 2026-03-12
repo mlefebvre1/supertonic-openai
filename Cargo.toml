@@ -40,6 +40,9 @@ tempfile = "3"
 
 axum = { version = "0.8", features = ["macros"] }
 
+opus = { version = "0.3" }
+ogg = { version = "0.9" }
+
 
 [features]
 cuda = ["ort/cuda"]
