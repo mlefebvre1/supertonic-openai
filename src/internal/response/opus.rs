@@ -19,14 +19,12 @@ pub fn create_opus_ogg(pcm_data: &[f32], input_sample_rate: u32) -> anyhow::Resu
 
     const SAMPLE_RATE: u32 = 48_000;
 
+    // Opus supports 8000, 12000, 16000, 24000, and 48000 Hz. Otherwise, we need to resample to
+    // 48000 Hz.
     let data = match input_sample_rate {
         8000 | 12000 | 16000 | 24000 | 48000 => std::borrow::Cow::Borrowed(pcm_data),
         _ => std::borrow::Cow::Owned(resample(input_sample_rate, SAMPLE_RATE, pcm_data)?),
     };
-
-    //TODO: add a check if the sample rate is not supported by Opus then do the resampling, otherwise
-    //skip it. Opus supports 8000, 12000, 16000, 24000, and 48000 Hz.
-    //resampling
 
     let mut encoder =
         opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Audio)?;
