@@ -5,6 +5,8 @@ use std::{
 
 use ogg::{PacketWriteEndInfo, PacketWriter};
 
+use crate::internal::response::resample::resample;
+
 const BITRATE: i32 = 64_000;
 const FRAME_SIZE_MS: usize = 20;
 
@@ -17,8 +19,14 @@ pub fn create_opus_ogg(pcm_data: &[f32], input_sample_rate: u32) -> anyhow::Resu
 
     const SAMPLE_RATE: u32 = 48_000;
 
-    //TODO: resample from sample_rate to 48000 if needed, since Opus encoder expects 48kHz input.
-    //For now we assume the input is always 48kHz.
+    let data = match input_sample_rate {
+        8000 | 12000 | 16000 | 24000 | 48000 => std::borrow::Cow::Borrowed(pcm_data),
+        _ => std::borrow::Cow::Owned(resample(input_sample_rate, SAMPLE_RATE, pcm_data)?),
+    };
+
+    //TODO: add a check if the sample rate is not supported by Opus then do the resampling, otherwise
+    //skip it. Opus supports 8000, 12000, 16000, 24000, and 48000 Hz.
+    //resampling
 
     let mut encoder =
         opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Audio)?;
@@ -51,7 +59,7 @@ pub fn create_opus_ogg(pcm_data: &[f32], input_sample_rate: u32) -> anyhow::Resu
     // Output buffer recommendation: 4000 bytes is generally enough for max Opus frame
     let mut encode_buffer = vec![0u8; 4000];
     let mut granule_pos = 0u64;
-    for chunk in pcm_data.chunks(frame_size) {
+    for chunk in data.chunks(frame_size) {
         // Padding for last chunk
         let input_frame = if chunk.len() < frame_size {
             let mut padded = chunk.to_vec();
@@ -100,4 +108,8 @@ fn create_opus_tag() -> Vec<u8> {
     tags.extend_from_slice(vendor); // vendor string
     tags.extend_from_slice(0u32.to_le_bytes().as_ref()); // user comment list length (0 for no
     tags
+}
+
+fn is_sample_rate_supported(sample_rate: u32) -> bool {
+    matches!(sample_rate, 8000 | 12000 | 16000 | 24000 | 48000)
 }

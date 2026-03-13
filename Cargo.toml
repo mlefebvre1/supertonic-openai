@@ -40,6 +40,9 @@ tempfile = "3"
 
 axum = { version = "0.8", features = ["macros"] }
 
+rubato = "1.0.1"
+audioadapter-buffers = "2.0.0"
+
 opus = { version = "0.3" }
 ogg = { version = "0.9" }
 

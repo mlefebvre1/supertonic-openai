@@ -1,4 +1,5 @@
 mod opus;
+mod resample;
 mod wav;
 
 pub enum ResponseFormat {
