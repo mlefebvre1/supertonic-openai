@@ -26,14 +26,14 @@ git clone <repository-url>
 cd supertonic-openai
 ```
 
-2. Download the model assets:
+1. Download the model assets:
    The preferred way is to use the [Hugginface CLI](https://huggingface.co/docs/huggingface_hub/guides/cli)
 
 ```bash
 hf download Supertone/supertonic-2 --local-dir ./assets
 ```
 
-3. Build the project:
+1. Build the project:
 
 ```bash
 # CPU version
@@ -43,7 +43,7 @@ cargo build --release
 cargo build --release --features cuda
 ```
 
-4. Run the server:
+1. Run the server:
 
 ```bash
 # Default settings (listens on 0.0.0.0:50051)
@@ -102,7 +102,8 @@ It implements the audio/speech and audio/voices [OpenAI endpoints](https://devel
   "voice": "M1",
   "speed": 1.3,
   "total_step": 10,
-  "silence_duration": 0.0
+  "silence_duration": 0.0,
+  "language": "en" 
 }
 ```
 
@@ -114,6 +115,7 @@ It implements the audio/speech and audio/voices [OpenAI endpoints](https://devel
 - `speed` (optional): Speech rate multiplier, defaults to 1.3 (float)
 - `total_step` (optional): Denoising steps for quality (1-50), defaults to 10 (integer)
 - `silence_duration` (optional): Pause duration between sentences in seconds, defaults to 0.0 (float)
+- language (optional): Instruct which language to generate. English ("en") by default, otherwise you have to set this.
 
 **Response:**
 
@@ -129,7 +131,8 @@ curl -X POST http://localhost:50051/v1/audio/speech \
     "input": "Hello world!",
     "model": "supertonic",
     "voice": "F2",
-    "speed": 1.0
+    "speed": 1.0,
+    "language": "en"
   }' \
   --output speech.wav
 ```
