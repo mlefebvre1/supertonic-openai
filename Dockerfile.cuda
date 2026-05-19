@@ -16,7 +16,7 @@ WORKDIR /app
 # Download ONNX stuff on Hugginface
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-RUN /root/.local/bin/hf download Supertone/supertonic-2 --local-dir ./assets
+RUN /root/.local/bin/hf download Supertone/supertonic-3 --local-dir ./assets
 
 # Copy sources and build
 COPY . . 
@@ -27,7 +27,7 @@ FROM  nvidia/cuda:12.9.0-cudnn-devel-ubuntu24.04 as runner
 WORKDIR /app
 
 # The actual app
-COPY --from=builder /app/target/release/supertonic2-openai /app/supertonic2-openai
+COPY --from=builder /app/target/release/supertonic-openai /app/supertonic-openai
 
 # ONNX Runtime shared libraries
 COPY --from=builder /app/target/release/libonnxruntime_providers_shared.so /app/libonnxruntime_providers_shared.so
@@ -40,5 +40,5 @@ COPY --from=builder /app/assets /app/assets
 
 
 
-ENTRYPOINT ["/app/supertonic2-openai", "--gpu"]
+ENTRYPOINT ["/app/supertonic-openai", "--gpu"]
 

@@ -1,6 +1,6 @@
 [package]
-name = "supertonic2-openai"
-version = "0.1.0"
+name = "supertonic-openai"
+version = "3.0.0"
 edition = "2024"
 
 [dependencies]

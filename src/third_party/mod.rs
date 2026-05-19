@@ -730,13 +730,9 @@ impl TextToSpeech {
         let mut dur_cat: f32 = 0.0;
 
         for (i, chunk) in chunks.iter().enumerate() {
-            let (wav, duration) = self._infer(
-                &[chunk.clone()],
-                &[lang.to_string()],
-                style,
-                total_step,
-                speed,
-            )?;
+            let text_list = std::slice::from_ref(chunk);
+            let (wav, duration) =
+                self._infer(text_list, &[lang.to_string()], style, total_step, speed)?;
 
             let dur = duration[0];
             let wav_len = (self.sample_rate as f32 * dur) as usize;

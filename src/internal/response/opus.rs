@@ -107,7 +107,3 @@ fn create_opus_tag() -> Vec<u8> {
     tags.extend_from_slice(0u32.to_le_bytes().as_ref()); // user comment list length (0 for no
     tags
 }
-
-fn is_sample_rate_supported(sample_rate: u32) -> bool {
-    matches!(sample_rate, 8000 | 12000 | 16000 | 24000 | 48000)
-}

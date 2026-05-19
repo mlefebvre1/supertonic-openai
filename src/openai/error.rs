@@ -24,7 +24,6 @@ pub enum OpenAIError {
     Other(#[from] anyhow::Error),
 }
 
-// TODO:Should probably moved to axum impl
 #[derive(FromRequest)]
 #[from_request(via(axum::Json), rejection(OpenAIError))]
 pub struct AppJson<T>(T);
@@ -61,4 +60,3 @@ impl IntoResponse for OpenAIError {
         (status, AppJson(ErrorResponse { message })).into_response()
     }
 }
-// TODO:Should probably moved to axum impl

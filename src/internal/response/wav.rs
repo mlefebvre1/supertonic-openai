@@ -26,7 +26,7 @@ pub fn write_wav_file<P: AsRef<Path>>(
     let mut writer = WavWriter::create(filename, spec)?;
 
     for &sample in audio_data {
-        let clamped = sample.max(-1.0).min(1.0);
+        let clamped = sample.clamp(-1.0, 1.0);
         let val = (clamped * 32767.0) as i16;
         writer.write_sample(val)?;
     }

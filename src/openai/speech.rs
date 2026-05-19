@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use axum::{
     Json,
     extract::Extension,
@@ -13,7 +11,6 @@ use std::sync::Arc;
 use crate::{
     internal::{AppState, ResponseFormat, create_response},
     openai::OpenAIError,
-    third_party::write_wav_file,
 };
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -47,6 +44,9 @@ pub struct SpeechBodyParams {
 
     /// Duration between each sentence in seconds.
     silence_duration: Option<f32>,
+
+    /// Control the language to speak the words in. This is not part of the official OpenAI API.
+    language: Option<String>,
 }
 
 #[tracing::instrument(skip(state,params), fields(input=%params.input, voice = ?params.voice, response_format = ?params.response_format))]
@@ -109,11 +109,12 @@ async fn inference(
     let silence_duration = params.silence_duration.unwrap_or(0.3);
 
     tracing::info!(total_step = %total_step, speed=%speed, silence_duration=%silence_duration, "Starting TTS inference.");
+    let lang = params.language.clone().unwrap_or("en".to_string());
 
     Ok(tts
         .call(
             &params.input,
-            "en", //TODO: make this configurable
+            &lang,
             style,
             total_step,
             speed,
