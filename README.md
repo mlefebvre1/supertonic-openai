@@ -1,6 +1,6 @@
-# Supertonic2 OpenAI
+# Supertonic3 OpenAI
 
-An OpenAI-compatible Text-to-Speech (TTS) HTTP API server that wraps the [Supertonic 2](https://huggingface.co/Supertone/supertonic-2) TTS model.
+An OpenAI-compatible Text-to-Speech (TTS) HTTP API server that wraps the [Supertonic](https://huggingface.co/Supertone/supertonic-3) TTS model.
 
 ## Features
 
@@ -30,7 +30,7 @@ cd supertonic-openai
    The preferred way is to use the [Hugginface CLI](https://huggingface.co/docs/huggingface_hub/guides/cli)
 
 ```bash
-hf download Supertone/supertonic-2 --local-dir ./assets
+hf download Supertone/supertonic-3 --local-dir ./assets
 ```
 
 1. Build the project:
@@ -47,10 +47,10 @@ cargo build --release --features cuda
 
 ```bash
 # Default settings (listens on 0.0.0.0:50051)
-./target/release/supertonic2-openai
+./target/release/supertonic-openai
 
 # Custom settings
-./target/release/supertonic2-openai --gpu
+./target/release/supertonic-openai --gpu
 ```
 
 ## Docker Deployment
